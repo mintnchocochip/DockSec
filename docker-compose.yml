@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  web-app:
+    build: 
+      context: .
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    container_name: vulnerable-web-container
+    volumes:
+      - ./Vulnerable-Web-Application:/opt/vulnerable-web-app
+    restart: unless-stopped
