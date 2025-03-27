@@ -3,7 +3,7 @@ from typing import Optional
 
 class ContainerSchema(BaseModel):
     api_key: str
-    container_id: Optional[str] = None
+    container_id: str
     monitoring: bool = True
 
 def individual_container_serial(container) -> dict:

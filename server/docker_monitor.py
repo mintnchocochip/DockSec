@@ -1,36 +1,59 @@
+# docker_monitor.py (simplified with print)
 import docker
-import psutil
+import os
 import time
-from detection import analyze_logs, analyze_metrics
 
-client = docker.from_env()
+# Dictionary to track monitored containers
 monitoring_containers = {}
 
-async def monitor_container(container_id, api_key):
-    """ Monitor logs and metrics from a container """
-    container = client.containers.get(container_id)
-    monitoring_containers[container_id] = True  # Flag to keep monitoring
+# Configure Docker client
+client = docker.DockerClient(
+    base_url="http://shining-enabling-unicorn.ngrok-free.app:2375",
+    timeout=1
+)
 
-    while monitoring_containers[container_id]:
-        logs = container.logs(tail=10).decode("utf-8")
-        stats = container.stats(stream=False)
+def validate_container_id(container_id: str) -> bool:
+    """Verify container exists on Docker host"""
+    try:
+        client.containers.get(container_id)
+        return True
+    except docker.errors.NotFound:
+        print(f"Error: Container {container_id} not found")
+        return False
+    except docker.errors.APIError as e:
+        print(f"Error: Docker API validation failed - {str(e)}")
+        return False
 
-        # Extract system metrics
-        cpu_usage = stats["cpu_stats"]["cpu_usage"]["total_usage"]
-        mem_usage = stats["memory_stats"]["usage"]
-        net_in = stats["networks"]["eth0"]["rx_bytes"]
-        net_out = stats["networks"]["eth0"]["tx_bytes"]
+def monitor_container(container_id: str):
+    """Enhanced monitoring with proper cleanup"""
+    try:
+        container = client.containers.get(container_id)
+        monitoring_containers[container_id] = True
+        print(f"Started monitoring container: {container_id}")
+        
+        while monitoring_containers.get(container_id, False):
+            # Existing monitoring logic
+            logs = container.logs(tail=10).decode("utf-8")
+            stats = container.stats(stream=False)
+            
+            # Print metrics
+            print(f"\nContainer {container_id} Metrics:")
+            print(f"Logs (last 10 lines):\n{logs}")
+            print(f"CPU Usage: {stats['cpu_stats']['cpu_usage']['total_usage']}")
+            print(f"Memory Usage: {stats['memory_stats']['usage']} bytes")
+            
+            time.sleep(5)
+            
+    except docker.errors.APIError as e:
+        print(f"Error: Docker API failure - {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+    finally:
+        monitoring_containers.pop(container_id, None)
+        print(f"Stopped monitoring container: {container_id}")
 
-        # Analyze for anomalies
-        log_anomaly = analyze_logs(logs)
-        metric_anomaly = analyze_metrics(cpu_usage, mem_usage, net_in, net_out)
-
-        if log_anomaly or metric_anomaly:
-            print(f"🚨 Anomaly Detected in {container_id} 🚨")
-
-        time.sleep(5)  # Check every 5 seconds
-
-def stop_monitoring(container_id):
-    """ Stop monitoring a container """
+def stop_monitoring(container_id: str):
+    """Stop monitoring a container"""
     if container_id in monitoring_containers:
         monitoring_containers[container_id] = False
+        print(f"Stopping monitoring for container: {container_id}")
